@@ -175,6 +175,21 @@ void buscProf(Grafo *g, int vertice_inicial, int *ordem_chegada, int *ordem_said
     buscProfI(g, vertice_inicial, ordem_chegada, ordem_saida, tempo);
 }
 
+Grafo* lerGrafoMatriz(FILE *entrada)
+{
+    int n_vertices, vertice, vizinho, valor;
+    Grafo *g;
+    fscanf(entrada, "%d\n", &n_vertices);
+    g = criaGrafo(n_vertices);
+    for(vertice = 0; vertice < g->n_vertices; vertice++)
+        for(vizinho = 0; vizinho < g->n_vertices; vizinho++)
+        {
+            fscanf(entrada, "%d", &valor);
+            if(valor == 1)
+                insereAresta(g, vertice, vizinho);
+        }
+    return g;
+}
 
 
 

@@ -22,4 +22,9 @@ Grafo* dagAleatorio(int vertices, int arestas, int *perm);
 Grafo* dagAleatorioP(int vertices, int arestas, int *perm);
 Grafo* dagAleatorioOtimizadaKnuthS(int vertices, int arestas, int *perm);
 
+Grafo* lerGrafoImpresso(FILE *entrada);
+Grafo* lerGrafoImpressoSemSentinela(FILE *entrada);
+
+void distanciasDAG(Grafo *g, int origem, int *dist, int *pred);
+void Dijkstra(Grafo *g, int origem, int *dist, int *pred);
 #endif // GRAFO_H_INCLUDED

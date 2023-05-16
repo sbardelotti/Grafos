@@ -2,10 +2,12 @@
 #include <stdlib.h>
 #include "Grafo.h"
 #include <string.h>
+#include <math.h>
 typedef struct no No;
 struct no{
     int rotulo;
     No *prox;
+    int custo;
 };
 
 struct grafo{
@@ -429,4 +431,195 @@ Por fim, percorremos os vértices na ordem da permutação aleatória e criamos as a
 */
 
 // Veja que o algortimo otimizado tem complexidade O(arestas + vertices) enquanto o normal é O(vertices^2)
+
+Grafo* lerGrafoImpresso(FILE *entrada)
+{
+    int n_vertices, n_arestas, vertice, vizinho;
+    Grafo *g;
+    fscanf(entrada, "%d %d\n", &n_vertices, &n_arestas);
+    g = criaGrafo(n_vertices);
+    for(vertice = 0; vertice < g->n_vertices; vertice++)
+    {
+        fscanf(entrada, "%d", &vizinho);
+        while(vizinho != -1)
+        {
+            insereArestaNaoSegura(g, vertice, vizinho);
+            fscanf(entrada, "%d", &vizinho);
+        }
+    }
+    return g;
+}
+
+/*
+5 5    (5 vertices e 5 arestas)
+1 2 -1 (vertice 0)
+3 -1   (vertice 1)
+3 -1   (vertice 2)
+4 -1   (vertice 3)
+        o -1 se refere a sentinela
+*/
+
+Grafo* lerGrafoImpressoSemSentinela(FILE *entrada)
+{
+    int n_vertices, n_arestas, vertice, vizinho, tam;
+    Grafo *g;
+    char *str, *aux;
+    fscanf(entrada, "%d %d\n", &n_vertices, &n_arestas);
+    g = criaGrafo(n_vertices);
+    tam = ((g->n_vertices * ((int)log10((double)g->n_vertices) + 1)) + 3) * sizeof(char);
+    str = malloc(tam);
+    for(vertice = 0; vertice < g->n_vertices; vertice++)
+    {
+        fgets(str, tam, entrada); //le a entrada até encontrar \n, fim de arquivo ou ler até tam-1
+        aux = strtok(str, ":"); //pega o token delimitado por :
+        aux = strtok(NULL, " \n"); //pega o token delimitado por espaço OU \n
+        while(aux != NULL)
+        {
+            vizinho = atoi(aux);
+            insereArestaNaoSegura(g, vertice, vizinho);
+            aux = strtok(NULL, " \n");
+        }
+    }
+    free(str);
+    return g;
+}
+
+/*
+n_vertices n_arestas (terá n_vertices linhas para ler)
+vertice1: vizinho11 vizinho12 vizinho13
+vertice2: vizinho21 vizinho22
+vertice3: vizinho31 vizinho32 vizinho33 vizinho34 vizinho35
+...
+verticen: vizinho11 ... vizinhon
+*/
+
+/*
+A função fgets() é uma função em C que é usada para ler uma linha de um arquivo de entrada, incluindo o caractere de nova linha '\n' e armazenar em uma string.
+
+A função fgets() recebe três argumentos:
+
+char *str: é o ponteiro para uma string que armazenará a linha lida do arquivo.
+int n: é o número máximo de caracteres que serão lidos da linha, incluindo o caractere '\n' final. Esse valor deve ser menor ou igual ao tamanho do array que contém a string str.
+FILE *stream: é o ponteiro para o arquivo de entrada a partir do qual a função deve ler.
+*/
+
+/*
+tam é o tamanho (em bytes) da string que vamos usar para ler as linhas do arquivo de entrada.
+Uma linha que apresenta os vizinhos do vértice 3, por exemplo, pode ter o formato "3: 1 5 4", indicando que existem os arcos (3, 1), (3, 5) e (3, 4), e lembrando que existe um '\n' invisível marcando o final da linha.
+Como num grafo simples o máximo de vizinhos que um vértice pode ter é n - 1 (quando ele tem arcos para todos os outros vértices), essa linha pode ter até n rótulos de vértices (n - 1 dos vizinhos + 1 rótulo do vértice origem antes do ':'), o que justifica o G->n multiplicado na expressão.
+Além disso, cada rótulo ocupa no máximo log10 (n + 1) dígitos (para perceber isso, note que se n for 9, precisamos de apenas um dígito, se n for 99 precisamos de dois dígitos, e assim por diante).
+Além dos dígitos de cada rótulo, precisamos de um espaço separando os mesmos, o que justifica o +1 da expressão (log10 (n + 1) +1) que depois é multiplicada por G->n. Por fim, o +3 está lá para deixar o espaço do ':', do '\n' que está no final da linha da entrada, e do '\0' que é necessário para marcarmos o final da string
+*/
+
+void buscaProfOrdTopoRDist(Grafo *g, int vertice, int *visitado, int *ordTopo, int *P_rotAtual)
+{
+    int vizinho;
+    No *no;
+    visitado[vertice] = 1;
+    no = g->arestas[vertice];
+    while(no != NULL)
+    {
+        vizinho = no->rotulo;
+        if(visitado[vizinho] == 0)
+            buscaProfOrdTopoRDist(g, vizinho, visitado, ordTopo, P_rotAtual);
+        no = no->prox;
+    }
+    // Abaixo está as alterações
+    ordTopo[*P_rotAtual] = vertice;
+    (*P_rotAtual)--;
+    // Agora o vetor está indexado por posições com seu conteúdo sendo o rotulo dos vertices
+}
+
+void ordenacaoTopoDist(Grafo *g, int *ordTopo)
+{
+    int vertice, rot_atual, *visitado;
+    visitado = malloc(g->n_vertices * sizeof(int));
+    for(vertice = 0; vertice < g->n_vertices; vertice++)
+        visitado[vertice] = 0;
+    rot_atual = g->n_vertices;
+    for(vertice = 0; vertice < g->n_vertices; vertice++)
+        if(visitado[vertice] == 0)
+            buscaProfOrdTopoRDist(g, vertice, visitado, ordTopo, &rot_atual);
+    free(visitado);
+}
+
+void distanciasDAG(Grafo *g, int origem, int *dist, int *pred)
+{
+    int i, *ordTopo;
+    int vertice, vizinho, custo;
+    No *no;
+    for(i = 0; i < g->n_vertices; i++)
+    {
+        dist[i] = __INT_MAX__;
+        pred[i] = -1;
+    }
+    dist[origem] = 0;
+    ordTopo = malloc((g->n_vertices + 1) * sizeof(int));  //  Está alocando com +1 para manter a convenção de ir de 1 até N, ou seja, a posição 0 não é utilizada
+    ordenacaoTopoDist(g, ordTopo);
+    for(i = 1; i <= g->n_vertices; i++)
+    {
+        vertice = ordTopo[i];
+        no = g->arestas[vertice];
+        while(no != NULL)
+        {
+            vizinho = no->rotulo;
+            custo = no->custo;
+            if(dist[vizinho] > dist[vertice] + custo)
+            {
+                dist[vizinho] = dist[vertice] + custo;
+                pred[vizinho] = vertice;
+            }
+            no = no->prox;
+        }
+    }
+    free(ordTopo);
+}
+
+// Tem que adaptar a inserção e criação de novos vertices para dar suporte ao CUSTO
+
+void Dijkstra(Grafo *g, int origem, int *dist, int *pred)
+{
+    int i, *R;
+    int vertice, vizinho, custo, tam_R, min_dist;
+    No *no;
+
+    for(i = 0; i < g->n_vertices; i++)
+    {
+        dist[i] = __INT_MAX__;
+        pred[i] = -1;
+    }
+    dist[origem] = 0;
+    R = malloc(g->n_vertices * sizeof(int));  //  conjunto resolvidos
+    for(i = 0; i < g->n_vertices; i++)
+        R[i] = 0;
+    tam_R = 0;
+
+    while(tam_R < g->n_vertices)
+    {
+        min_dist = __INT_MAX__;
+        vertice = -1;
+        for(i = 0; i <= g->n_vertices; i++) // esse for em especifico torna o algorimo muito ineficiente
+            if(R[i] == 0 && dist[i] < min_dist)
+            {
+                vertice = i;
+                min_dist = dist[i];
+            }
+
+        R[vertice] = 1;
+        tam_R++;
+
+        for(no = g->arestas[vertice]; no != NULL; no = no->prox)
+        {
+            vizinho = no->rotulo;
+            custo = no->custo;
+            if(R[vizinho] == 0 && dist[vizinho] > dist[vertice] + custo)
+            {
+                dist[vizinho] = dist[vizinho] + custo;
+                pred[vizinho] = vertice;
+            }
+        }
+    }
+    free(R);
+}
+
 
